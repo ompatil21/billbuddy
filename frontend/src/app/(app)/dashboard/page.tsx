@@ -1,3 +1,4 @@
+"use client";
 import PageHeader from '@/components/common/PageHeader';
 import EmptyState from '@/components/common/EmptyState';
 
