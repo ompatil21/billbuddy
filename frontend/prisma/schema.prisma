@@ -10,18 +10,36 @@ generator client {
   provider = "prisma-client-js"
 }
 
+/**
+ * -------------------- Enums --------------------
+ */
+
+enum SplitType {
+  EQUAL
+  EXACT
+  PERCENT
+}
+
+/**
+ * -------------------- Core Models --------------------
+ */
+
 model User {
   id            String    @id @default(cuid())
   name          String?
-  email         String?   @unique // <- optional to avoid OAuth create failures
-  emailVerified DateTime? // <- required by NextAuth
+  email         String?   @unique // optional to avoid OAuth create failures
+  emailVerified DateTime? // required by NextAuth
   image         String?
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt // <- handy
+  updatedAt     DateTime  @updatedAt
 
   // app-specific
   memberships   GroupMember[]
   createdGroups Group[]       @relation("GroupCreator")
+
+  // expense relationships
+  paidExpenses Expense[]    @relation("ExpensePayer") // expenses where this user is the payer
+  allocations  Allocation[] // per-expense shares owed/credited to this user
 
   // next-auth
   accounts Account[]
@@ -31,13 +49,16 @@ model User {
 model Group {
   id          String   @id @default(cuid())
   name        String
-  currency    String // ISO code
+  currency    String // ISO code, e.g. "AUD"
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   createdBy User          @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
   members   GroupMember[]
+
+  // expenses that belong to this group (direct person-to-person expenses will have groupId = null)
+  expenses Expense[]
 
   @@index([createdById])
 }
@@ -55,6 +76,54 @@ model GroupMember {
   @@index([userId])
   @@index([groupId])
 }
+
+/**
+ * -------------------- Expenses --------------------
+ */
+
+model Expense {
+  id String @id @default(cuid())
+
+  // Optional group: when null, this is a direct expense split with selected people (no group required)
+  groupId String?
+  payerId String
+
+  description String
+  amountCents Int
+  currency    String    @default("AUD")
+  splitType   SplitType @default(EQUAL)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  group       Group?       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer       User         @relation("ExpensePayer", fields: [payerId], references: [id], onDelete: Cascade)
+  allocations Allocation[]
+
+  // Indexes for faster dashboard queries
+  @@index([groupId, createdAt])
+  @@index([payerId])
+  @@index([createdAt])
+}
+
+model Allocation {
+  id          String @id @default(cuid())
+  expenseId   String
+  userId      String
+  amountCents Int // this user's share for the expense (can be positive; settlements are computed in queries)
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId]) // one allocation per user per expense
+  @@index([userId])
+  @@index([expenseId])
+}
+
+/**
+ * -------------------- NextAuth Models --------------------
+ */
 
 model Account {
   id                String @id @default(cuid())
