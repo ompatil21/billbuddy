@@ -260,3 +260,37 @@
   left:-2px; width:calc(100% + 4px); right:auto;
   height:8px; opacity:.45;
 }
+
+
+/* ----- Sonner pastel crayon theme ----- */
+:root {
+  --crayon-ink: #1f2937;               /* slate-800 */
+  --crayon-shadow: 0 8px 24px rgba(2, 6, 23, 0.08);
+
+  --crayon-sky:    #eaf2ff;
+  --crayon-lemon:  #fff6d8;
+  --crayon-lilac:  #f2eafe;
+  --crayon-mint:   #eaf8f0;
+  --crayon-peach:  #ffe8ea;
+
+  --crayon-border: rgba(2, 6, 23, 0.08);
+}
+
+/* base toast */
+[data-sonner-toast] {
+  background: #fff;                    /* fallback */
+  color: var(--crayon-ink);
+  border-radius: 16px;
+  border: 2px solid var(--crayon-border);
+  box-shadow: var(--crayon-shadow);
+  backdrop-filter: blur(6px);
+}
+
+/* type colors */
+[data-sonner-toast][data-type="success"] { background: var(--crayon-mint); }
+[data-sonner-toast][data-type="error"]   { background: var(--crayon-peach); }
+[data-sonner-toast][data-type="warning"] { background: var(--crayon-lemon); }
+[data-sonner-toast][data-type="info"]    { background: var(--crayon-sky); }
+
+/* keep the container above dialogs just in case */
+[data-sonner-toaster] { z-index: 9999; }
