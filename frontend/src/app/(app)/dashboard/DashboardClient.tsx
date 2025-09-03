@@ -58,57 +58,58 @@ export default function DashboardClient({
                     </div>
                 </div>
 
-                {/* Stat tiles */}
+
                 <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <StatCard
-                        className="crayon-card p-6"       // ◆ give StatCard a className prop (see small tweak below)
+                        variant="lemon"
                         label="Total balance"
                         value={formatCentsAUD(stats.totalBalanceCents)}
                         hint={stats.totalBalanceCents >= 0 ? "Overall you’re in credit" : "Overall you owe"}
                     />
-                    <StatCard className="crayon-card p-6" label="You owe" value={formatCentsAUD(stats.youOweCents)} />
-                    <StatCard className="crayon-card p-6" label="You’re owed" value={formatCentsAUD(stats.youAreOwedCents)} />
+                    <StatCard variant="peach" label="You owe" value={formatCentsAUD(stats.youOweCents)} />
+                    <StatCard variant="mint" label="You’re owed" value={formatCentsAUD(stats.youAreOwedCents)} />
                 </section>
 
-                {/* Two-column layout */}
                 <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                     <div className="lg:col-span-2">
-                        {/* <h2 className="scribble mb-3 text-lg">Recent expenses</h2> */}
-                        <div className="crayon-card p-4">
-                            <RecentExpenses
-                                expenses={recentExpenses.map((e) => ({
-                                    id: e.id,
-                                    description: e.description,
-                                    amount: e.amountCents,
-                                    createdAt: e.date,
-                                }))}
-                            />
-                        </div>
+                        {/* no external h2, the component provides it */}
+                        <RecentExpenses
+                            className="lilac p-4"
+                            expenses={recentExpenses.map((e) => ({
+                                id: e.id,
+                                description: e.description,
+                                amount: e.amountCents,   // cents
+                                createdAt: e.date,
+                            }))}
+                            viewAllHref="/expenses"
+                            viewAllClassName="lilac"
+                        />
                     </div>
 
-                    <div className="lg:col-span-1">
-                        <h2 className="scribble mb-3 text-lg">Your groups</h2>
-                        {/* ◆ crayon card */}
-                        <div className="crayon-card p-6 text-sm text-gray-700">
-                            {groups.length === 0 ? (
-                                <>No groups yet — create one to start splitting!</>
-                            ) : (
-                                <ul className="space-y-2">
-                                    {groups.map((g) => (
-                                        <li key={g.id} className="flex items-center justify-between">
-                                            <span className="truncate">{g.name}</span>
-                                            <span className="text-xs text-gray-500">
-                                                {new Date(g.createdAt).toLocaleDateString()}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
                 </section>
-
+                <div className="lg:col-span-1">
+                    <h2 className="scribble mb-3 text-lg">Your groups</h2>
+                    {/* ◆ crayon card */}
+                    <div className="crayon-card p-6 text-sm text-gray-700">
+                        {groups.length === 0 ? (
+                            <>No groups yet — create one to start splitting!</>
+                        ) : (
+                            <ul className="space-y-2">
+                                {groups.map((g) => (
+                                    <li key={g.id} className="flex items-center justify-between">
+                                        <span className="truncate">{g.name}</span>
+                                        <span className="text-xs text-gray-500">
+                                            {new Date(g.createdAt).toLocaleDateString()}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
             </div>
+
         </div>
+
     );
 }
