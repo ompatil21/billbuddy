@@ -1,57 +1,63 @@
-console.log("[SSR] /dashboard rendering…");
-
 // server gate + data fetch
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import DashboardClient from "./DashboardClient";
+import { RecentExpenses } from "@/components/dashboard/RecentExpenses";
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);          // server-side session
-  if (!session?.user?.email) redirect("/signin");                // gate
+  // --- Auth gate ---
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) redirect("/signin");
 
-  const user = await prisma.user.findUnique({                   // current user
+  // --- Current user ---
+  const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     select: { id: true, name: true, email: true },
   });
   if (!user) redirect("/signin");
 
-  const groups = await prisma.group.findMany({                  // recent groups
+  // --- Groups (recent 5, with member counts) ---
+  const groups = await prisma.group.findMany({
     where: { members: { some: { userId: user.id } } },
     orderBy: { createdAt: "desc" },
     take: 5,
-    select: { id: true, name: true, currency: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      currency: true,
+      createdAt: true,
+      _count: { select: { members: true } },
+    },
   });
 
   const groupCount = await prisma.group.count({
     where: { members: { some: { userId: user.id } } },
   });
 
-  // -------- NEW: dashboard totals (in cents) --------
-  // others owe you (you are payer)
+  // --- Dashboard totals (in cents) ---
   const youAreOwedAgg = await prisma.allocation.aggregate({
     _sum: { amountCents: true },
     where: {
-      userId: { not: user.id },                  // exclude yourself
-      expense: { payerId: user.id },             // you paid
+      userId: { not: user.id },        // others' shares
+      expense: { payerId: user.id },   // you paid
     },
   });
 
-  // you owe others (you are participant, someone else paid)
   const youOweAgg = await prisma.allocation.aggregate({
     _sum: { amountCents: true },
     where: {
-      userId: user.id,                           // your share
-      expense: { payerId: { not: user.id } },    // someone else paid
+      userId: user.id,                 // your share
+      expense: { payerId: { not: user.id } }, // someone else paid
     },
   });
 
   const youAreOwedCents = youAreOwedAgg._sum.amountCents ?? 0;
   const youOweCents = youOweAgg._sum.amountCents ?? 0;
-  const totalBalanceCents = youAreOwedCents - youOweCents;      // +ve means net credit
+  const totalBalanceCents = youAreOwedCents - youOweCents; // +ve => net credit
 
-  // -------- NEW: recent expenses (group or direct) --------
+  // --- Recent expenses (group or direct) ---
   const recentExpensesRaw = await prisma.expense.findMany({
     where: {
       OR: [
@@ -70,33 +76,49 @@ export default async function DashboardPage() {
     },
   });
 
-  const recentExpenses = recentExpensesRaw.map(e => ({
-    id: e.id,
-    description: e.description,
-    amountCents: e.amountCents,
-    date: e.createdAt.toISOString(), // add 'date' property
-    currency: e.currency,
-    createdAt: e.createdAt.toISOString(),
-    group: e.group ? { id: e.group.id, name: e.group.name } : null, // null = direct
-    payer: e.payer,
-    allocations: e.allocations.map(a => ({
-      id: a.id,
-      amountCents: a.amountCents,
-      user: a.user,
-    })),
-  }));
+  // Enrich with groupName / counterpartyName for the UI
+  const recentExpenses = recentExpensesRaw.map((e) => {
+    let counterpartyName: string | undefined;
+
+    if (!e.group) {
+      // direct expense: find the other participant (not the current user)
+      const other = e.allocations.find((a) => a.user.id !== user.id)?.user;
+      if (other?.name) {
+        counterpartyName = other.name;
+      } else if (e.payer.id !== user.id) {
+        counterpartyName = e.payer.name ?? "Someone";
+      }
+    }
+
+    return {
+      id: e.id,
+      description: e.description,
+      amountCents: e.amountCents,
+      date: e.createdAt.toISOString(),
+      currency: e.currency,
+      group: e.group ? { id: e.group.id, name: e.group.name } : null,
+      groupName: e.group?.name,
+      counterpartyName,
+      payer: e.payer,
+      allocations: e.allocations.map((a) => ({
+        id: a.id,
+        amountCents: a.amountCents,
+        user: a.user,
+      })),
+    };
+  });
 
   return (
     <DashboardClient
-
       name={user.name ?? user.email ?? "Unknown User"}
       groupCount={groupCount}
-      groups={groups.map(group => ({
-        ...group,
-        createdAt: group.createdAt.toISOString(),
+      groups={groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        currency: g.currency,
+        createdAt: g.createdAt.toISOString(),
+        membersCount: g._count.members,
       }))}
-
-      // NEW: pass stats + recent expenses
       stats={{
         youAreOwedCents,
         youOweCents,

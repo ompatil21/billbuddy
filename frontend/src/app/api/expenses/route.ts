@@ -4,67 +4,119 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { splitEqualCents } from "@/lib/split";
+import { splitEqualCents } from "@/lib/split"; // keep if you have it
 
-// ---- Validation schema (MVP: EQUAL split only) ----
-const CreateExpenseSchema = z.object({
+// ----- Schemas -----
+// A) Equal-split input (participants only)
+const EqualSplitSchema = z.object({
   description: z.string().min(1).max(120),
   amountCents: z.number().int().positive(),
   currency: z.string().length(3).default("AUD"),
-  payerId: z.string().cuid().optional(),          // defaults to current user
+  groupId: z.string().cuid().optional().nullable(),
+  // client may send payerId but we will ignore it server-side
+  payerId: z.string().cuid().optional(),
   participantIds: z.array(z.string().cuid()).min(1),
-  groupId: z.string().cuid().optional().nullable() // nullable => direct expense if null/undefined
 });
 
+// B) Explicit allocations input
+const AllocationSchema = z.object({
+  userId: z.string().cuid(),
+  amountCents: z.number().int().nonnegative(),
+});
+const ExplicitAllocSchema = z.object({
+  description: z.string().min(1).max(120),
+  amountCents: z.number().int().positive(),
+  currency: z.string().length(3).default("AUD"),
+  groupId: z.string().cuid().optional().nullable(),
+  payerId: z.string().cuid().optional(), // ignored
+  allocations: z.array(AllocationSchema).min(1),
+});
+
+// Accept either shape
+const CreateExpenseSchema = z.union([EqualSplitSchema, ExplicitAllocSchema]);
+
+// ------------------ POST ------------------
 export async function POST(req: Request) {
+  // 1) Auth
   const session = await getServerSession(authOptions);
-  const me = session && session.user ? (session.user as typeof session.user & { id?: string }).id : undefined;
+  const email = session?.user?.email;
+  if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const me = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: z.infer<typeof CreateExpenseSchema>;
-  try {
-    body = CreateExpenseSchema.parse(await req.json());
-  } catch (e) {
-    return NextResponse.json({ error: "Invalid body", details: (e as Error).message }, { status: 400 });
+  // 2) Parse body (supports both shapes)
+  const json = await req.json().catch(() => null);
+  const parsed = CreateExpenseSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid body", issues: parsed.error.format() },
+      { status: 400 }
+    );
   }
 
-  const {
-    description,
-    amountCents,
-    currency,
-    participantIds,
-    groupId: maybeGroupId,
-  } = body;
-  const payerId = body.payerId ?? me;
-  const groupId = maybeGroupId ?? null;
+  const data = parsed.data;
+  const description = data.description;
+  const amountCents = data.amountCents;
+  const currency = data.currency ?? "AUD";
+  const groupId = (data as any).groupId ?? null;
 
-  // Ensure participants are unique and include payer if desired (Splitwise allows payer to be participant)
-  const uniqueParticipantIds = Array.from(new Set(participantIds));
+  
+  // 3) Normalize to allocations[]
+  let allocations: Array<{ userId: string; amountCents: number }>;
+  if ("allocations" in data) {
+    allocations = data.allocations;
+  } else {
+    // equal split from participantIds
+    const uniqueIds = Array.from(new Set(data.participantIds));
+  const n = uniqueIds.length;
+  const base = Math.floor(amountCents / n);
+  const rem  = amountCents - base * n;
 
-  // --- Validate users exist
-  const users = await prisma.user.findMany({ where: { id: { in: [payerId, ...uniqueParticipantIds] } }, select: { id: true } });
+allocations = uniqueIds.map((userId, i) => ({
+  userId,
+  amountCents: i < rem ? base + 1 : base,
+}));
+  }
+
+  // 4) Validate allocations sum = amountCents
+  const sum = allocations.reduce((acc, a) => acc + a.amountCents, 0);
+  if (sum !== amountCents) {
+    return NextResponse.json(
+      { error: "Allocations must sum to amountCents", sum, amountCents },
+      { status: 400 }
+    );
+  }
+
+  // 5) Validate users exist
+  const allUserIds = Array.from(new Set(allocations.map(a => a.userId).concat(me.id)));
+  const users = await prisma.user.findMany({
+    where: { id: { in: allUserIds } },
+    select: { id: true },
+  });
   const foundIds = new Set(users.map(u => u.id));
-  const missing = [payerId, ...uniqueParticipantIds].filter(id => !foundIds.has(id));
+  const missing = allUserIds.filter(id => !foundIds.has(id));
   if (missing.length) {
     return NextResponse.json({ error: "Some users not found", missing }, { status: 400 });
   }
 
-  // --- If groupId provided, validate membership for all participants + payer
+  // 6) If group expense, everyone (including the payer/me) must be group members
   if (groupId) {
     const members = await prisma.groupMember.findMany({
-      where: { groupId, userId: { in: [payerId, ...uniqueParticipantIds] } },
-      select: { userId: true }
+      where: { groupId, userId: { in: allUserIds } },
+      select: { userId: true },
     });
     const memberIds = new Set(members.map(m => m.userId));
-    const notMembers = [payerId, ...uniqueParticipantIds].filter(id => !memberIds.has(id));
+    const notMembers = allUserIds.filter(id => !memberIds.has(id));
     if (notMembers.length) {
       return NextResponse.json({ error: "Users not in group", notMembers }, { status: 400 });
     }
   }
 
-  // --- Build allocations (equal split MVP)
-  const allocations = splitEqualCents(amountCents, uniqueParticipantIds);
-
+  // 7) Create expense with session user as payer (ignore client payerId)
   try {
     const created = await prisma.$transaction(async (tx) => {
       const expense = await tx.expense.create({
@@ -72,10 +124,12 @@ export async function POST(req: Request) {
           description,
           amountCents,
           currency,
-          payerId,
-          groupId, // can be null for direct expense
+          payerId: me.id,
+          groupId, // may be null for direct expenses
+          // Remove if your schema doesn't have it:
           splitType: "EQUAL",
-        }
+        },
+        select: { id: true },
       });
 
       await tx.allocation.createMany({
@@ -83,32 +137,39 @@ export async function POST(req: Request) {
           expenseId: expense.id,
           userId: a.userId,
           amountCents: a.amountCents,
-        }))
+        })),
       });
 
-      return await tx.expense.findUnique({
+      return tx.expense.findUnique({
         where: { id: expense.id },
         include: {
           payer: { select: { id: true, name: true, image: true } },
           group: { select: { id: true, name: true } },
           allocations: {
-            include: { user: { select: { id: true, name: true, image: true } } }
-          }
-        }
+            include: { user: { select: { id: true, name: true, image: true } } },
+          },
+        },
       });
     });
 
     return NextResponse.json(created, { status: 201 });
-  } catch (err: any) {
-    console.error("Create expense error:", err);
-    return NextResponse.json({ error: "Failed to create expense" }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to create expense";
+    console.error("Create expense error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-// (Optional) GET for recent expenses where you are payer or participant
+// ------------------ GET (recent) ------------------
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
-  const me = session && session.user ? (session.user as typeof session.user & { id?: string }).id : undefined;
+  const email = session?.user?.email;
+  if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const me = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
@@ -116,18 +177,17 @@ export async function GET(req: Request) {
 
   const items = await prisma.expense.findMany({
     where: {
-      OR: [
-        { payerId: me },
-        { allocations: { some: { userId: me } } }
-      ]
+      OR: [{ payerId: me.id }, { allocations: { some: { userId: me.id } } }],
     },
     orderBy: { createdAt: "desc" },
     take: limit,
     include: {
       payer: { select: { id: true, name: true, image: true } },
       group: { select: { id: true, name: true } },
-      allocations: { include: { user: { select: { id: true, name: true, image: true } } } }
-    }
+      allocations: {
+        include: { user: { select: { id: true, name: true, image: true } } },
+      },
+    },
   });
 
   return NextResponse.json(items);

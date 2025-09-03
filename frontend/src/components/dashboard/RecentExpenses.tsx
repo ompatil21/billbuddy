@@ -1,14 +1,15 @@
 "use client";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatCentsAUD } from "@/lib/money";
 
 type ExpenseItem = {
     id: string;
     description: string;
-    amount: number;                 // cents
+    amountCents: number;           // cents
     createdAt: string | Date;
-    groupName?: string | null;
-    counterpartyName?: string | null;
+    groupName?: string;
+    counterpartyName?: string;
 };
 
 export function RecentExpenses({
@@ -19,10 +20,10 @@ export function RecentExpenses({
     viewAllClassName,
 }: {
     expenses: ExpenseItem[];
-    className?: string;             // e.g. "crayon-card lilac p-4"
+    className?: string;
     showTitle?: boolean;
     viewAllHref?: string;
-    viewAllClassName?: string;      // e.g. "crayon-btn lilac"
+    viewAllClassName?: string;
 }) {
     return (
         <div className={cn("crayon-card lilac p-4", className)}>
@@ -34,15 +35,17 @@ export function RecentExpenses({
                         <div>
                             <div className="font-medium">{e.description}</div>
                             <div className="text-xs opacity-70">
-                                {e.groupName ? `In ${e.groupName}` :
-                                    e.counterpartyName ? `With ${e.counterpartyName}` :
-                                        "Direct expense"}
+                                {e.groupName
+                                    ? `In ${e.groupName}`
+                                    : e.counterpartyName
+                                        ? `With ${e.counterpartyName}`
+                                        : "Direct expense"}
                                 {" • "}
                                 {new Date(e.createdAt).toLocaleDateString()}
                             </div>
                         </div>
                         <div className="text-right font-semibold">
-                            ₹{(e.amount / 100).toLocaleString()}
+                            {formatCentsAUD(e.amountCents)}
                         </div>
                     </li>
                 ))}
@@ -50,7 +53,9 @@ export function RecentExpenses({
 
             {viewAllHref && (
                 <div className="mt-4 flex justify-end">
-                    <Link href={viewAllHref} className={cn("crayon-btn lilac", viewAllClassName)}>View all</Link>
+                    <Link href={viewAllHref} className={cn("crayon-btn lilac", viewAllClassName)}>
+                        View all
+                    </Link>
                 </div>
             )}
         </div>

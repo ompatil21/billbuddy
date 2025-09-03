@@ -5,15 +5,20 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { RecentExpenses } from "@/components/dashboard/RecentExpenses";
 import SplitWithPeopleDialog from "@/components/dashboard/SplitWithPeopleDialog";
 import { formatCentsAUD } from "@/lib/money";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
-type RecentExpense = {
+type DashboardRecentExpense = {
     id: string;
     description: string;
     amountCents: number;
-    date: string;
+    date: string;                // ISO string
+    groupName?: string;
+    counterpartyName?: string;
+    currency?: string;
 };
 
-type GroupLite = { id: string; name: string; currency: string; createdAt: string };
+type GroupLite = { id: string; name: string; currency: string; createdAt: string, membersCount: number; };
 
 export default function DashboardClient({
     name,
@@ -31,7 +36,7 @@ export default function DashboardClient({
         totalBalanceCents: number;
         currency: string;
     };
-    recentExpenses: RecentExpense[];
+    recentExpenses: DashboardRecentExpense[];
 }) {
     const router = useRouter();
 
@@ -52,9 +57,12 @@ export default function DashboardClient({
                     <div className="flex gap-2">
                         {/* ◆ crayon-styled trigger (component likely renders a Button; add className passthrough if needed) */}
                         <SplitWithPeopleDialog
-                            // if dialog supports className
                             onCreated={() => router.refresh()}
+                            trigger={<Button className="crayon-btn sky">Split with people</Button>}
                         />
+                        <Button asChild className="crayon-btn sky">
+                            <Link href="/groups">View groups</Link>
+                        </Button>
                     </div>
                 </div>
 
@@ -78,8 +86,10 @@ export default function DashboardClient({
                             expenses={recentExpenses.map((e) => ({
                                 id: e.id,
                                 description: e.description,
-                                amount: e.amountCents,   // cents
+                                amountCents: e.amountCents,
                                 createdAt: e.date,
+                                groupName: e.groupName,
+                                counterpartyName: e.counterpartyName,
                             }))}
                             viewAllHref="/expenses"
                             viewAllClassName="lilac"
@@ -89,8 +99,10 @@ export default function DashboardClient({
                 </section>
                 <div className="lg:col-span-1">
                     <h2 className="scribble mb-3 text-lg">Your groups</h2>
+
                     {/* ◆ crayon card */}
                     <div className="crayon-card p-6 text-sm text-gray-700">
+
                         {groups.length === 0 ? (
                             <>No groups yet — create one to start splitting!</>
                         ) : (
