@@ -99,8 +99,9 @@ export default function SplitWithPeopleDialog({ onCreated }: { onCreated?: () =>
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="default">Split with people</Button>
+                <button className="crayon-btn blue">Split with people</button>
             </DialogTrigger>
+
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Split with people</DialogTitle>

@@ -1,1 +1,104 @@
 @import "tailwindcss";
+@import "tailwindcss";
+
+/* ---------- Pastel / Crayon theme utilities ---------- */
+
+/* Paper background for pages */
+.pastel-page{
+  /* subtle warm paper */
+  background:
+    radial-gradient(1200px 600px at 20% 0%, rgba(255,255,255,0.65), transparent 60%),
+    radial-gradient(1000px 500px at 80% 20%, rgba(255,255,255,0.55), transparent 70%),
+    linear-gradient(#faf6ef,#faf6ef);
+}
+
+/* Hand-drawn card look */
+.crayon-card{
+  @apply rounded-2xl border bg-white/95;
+  /* “sketchy” double shadow */
+  box-shadow:
+    0 1px 0 0 rgba(0,0,0,0.12),
+    2px 3px 0 0 rgba(0,0,0,0.12);
+  /* soft border like pencil */
+  border-color: rgba(0,0,0,0.14);
+}
+
+/* Chunky playful button */
+.crayon-btn{
+  @apply rounded-xl px-4 py-2 font-medium;
+  @apply border bg-white;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.12), 2px 3px 0 rgba(0,0,0,0.12);
+  border-color: rgba(0,0,0,0.16);
+  transition: transform .06s ease, box-shadow .06s ease;
+}
+.crayon-btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 2px 0 rgba(0,0,0,0.12), 3px 4px 0 rgba(0,0,0,0.12);
+}
+.crayon-btn:active{
+  transform: translateY(0);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.12), 1px 2px 0 rgba(0,0,0,0.12);
+}
+
+/* Scribble/marker heading */
+.scribble{
+  font-family: ui-rounded, system-ui, -apple-system, Segoe UI, Roboto, "Segoe UI Rounded", "Trebuchet MS", sans-serif;
+  position: relative;
+}
+.scribble:after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:-6px;
+  height:10px;
+  background: repeating-linear-gradient(90deg, #ffd6e7, #ffd6e7 12px, transparent 12px, transparent 16px);
+  opacity:.6;
+  border-radius:8px;
+  pointer-events:none;
+}
+
+/* Little labels */
+.crayon-badge{
+  @apply inline-flex items-center rounded-lg px-2 py-0.5 text-xs border;
+  border-color: rgba(0,0,0,0.14);
+  box-shadow: 1px 2px 0 rgba(0,0,0,0.12);
+  background: #fffdf9;
+}
+
+/* pastel page */
+.pastel-page{
+  background:
+    radial-gradient(1200px 600px at 20% 0%, rgba(255,255,255,0.65), transparent 60%),
+    radial-gradient(1000px 500px at 80% 20%, rgba(255,255,255,0.55), transparent 70%),
+    linear-gradient(#faf6ef,#faf6ef);
+}
+/* cards */
+.crayon-card{ border-color: rgba(0,0,0,0.14); background: #fff; border-radius: 1rem;
+  box-shadow:0 1px 0 rgba(0,0,0,.12), 2px 3px 0 rgba(0,0,0,.12);
+}
+/* buttons */
+.crayon-btn{ border:1px solid rgba(0,0,0,.16); border-radius:.75rem; padding:.5rem 1rem; font-weight:500;
+  background:#fff; box-shadow:0 1px 0 rgba(0,0,0,.12), 2px 3px 0 rgba(0,0,0,.12);
+  transition:transform .06s ease, box-shadow .06s ease;
+}
+.crayon-btn:hover{ transform:translateY(-1px); box-shadow:0 2px 0 rgba(0,0,0,.12), 3px 4px 0 rgba(0,0,0,.12); }
+
+.crayon-btn:active{ transform:translateY(0); box-shadow:0 1px 0 rgba(0,0,0,.12), 1px 2px 0 rgba(0,0,0,.12); }
+
+
+/* scribble title */
+
+.scribble{ position:relative; font-weight:700; }
+
+.scribble:after{ content:""; position:absolute; left:0; right:0; bottom:-6px; height:10px;
+  background:repeating-linear-gradient(90deg,#ffd6e7,#ffd6e7 12px,transparent 12px,transparent 16px);
+  opacity:.6; border-radius:8px; pointer-events:none;
+}
+
+/* keep scribble underline tight to the text */
+.scribble { display: inline-block; line-height: 1.15; }
+.scribble:after {
+  left: -2px; right: auto;
+  width: calc(100% + 4px);   /* tiny overshoot so it peeks out */
+  opacity: .45;              /* a bit softer */
+  height: 8px;               /* slightly thinner */
+}

@@ -1,53 +1,51 @@
 "use client";
 
-import { formatCentsAUD } from "@/lib/money";
+import Link from "next/link";
+import { CrayonCard } from "@/components/ui/crayon-card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-type UserLite = { id: string; name: string | null; image?: string | null };
-type GroupLite = { id: string; name: string } | null;
-type AllocationLite = { id: string; amountCents: number; user: UserLite };
-
-export type RecentExpense = {
+type ExpenseItem = {
     id: string;
     description: string;
-    amountCents: number;
-    currency: string;
-    createdAt: string; // ISO
-    payer: UserLite;
-    group: GroupLite;  // null => direct
-    allocations: AllocationLite[];
+    amount: number;          // in your currency
+    createdAt: string | Date;
+    groupName?: string | null;
+    counterpartyName?: string | null; // for direct split
 };
 
-export default function RecentExpenses({ items, currentUserId }: { items: RecentExpense[]; currentUserId?: string }) {
-    if (!items?.length) {
-        return (
-            <div className="rounded-2xl border bg-white p-6 text-sm text-gray-600 shadow-sm">
-                No expenses yet.
-            </div>
-        );
-    }
-
+export function RecentExpenses({
+    expenses,
+    className,
+}: {
+    expenses: ExpenseItem[];
+    className?: string;
+}) {
     return (
-        <div className="rounded-2xl border bg-white p-2 shadow-sm">
+        <CrayonCard title="Recent expenses" className={cn(className)}>
             <ul className="divide-y">
-                {items.map((e) => {
-                    const title = e.group ? `${e.description} · ${e.group.name}` : `${e.description} · Direct`;
-                    const youPaid = e.payer.id === currentUserId;
-                    const tag = youPaid ? "You paid" : `${e.payer.name ?? "Someone"} paid`;
-                    return (
-                        <li key={e.id} className="flex items-center justify-between p-3">
-                            <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">{title}</p>
-                                <p className="mt-0.5 text-xs text-gray-500">
-                                    {new Date(e.createdAt).toLocaleDateString()} · {tag}
-                                </p>
+                {expenses.slice(0, 6).map((e) => (
+                    <li key={e.id} className="flex items-center justify-between py-3">
+                        <div>
+                            <div className="font-medium">{e.description}</div>
+                            <div className="text-xs opacity-70">
+                                {e.groupName ? `In ${e.groupName}` : e.counterpartyName ? `With ${e.counterpartyName}` : "Direct expense"}
+                                {" • "}
+                                {new Date(e.createdAt).toLocaleDateString()}
                             </div>
-                            <div className="text-sm font-semibold">
-                                {formatCentsAUD(e.amountCents)}
-                            </div>
-                        </li>
-                    );
-                })}
+                        </div>
+                        <div className="text-right">
+                            <div className="font-semibold">₹{e.amount.toLocaleString()}</div>
+                        </div>
+                    </li>
+                ))}
             </ul>
-        </div>
+
+            <div className="mt-4 flex justify-end">
+                <Button asChild className="crayon-btn">
+                    <Link href="/expenses">View all</Link>
+                </Button>
+            </div>
+        </CrayonCard>
     );
 }

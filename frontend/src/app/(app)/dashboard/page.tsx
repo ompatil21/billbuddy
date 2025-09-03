@@ -74,6 +74,7 @@ export default async function DashboardPage() {
     id: e.id,
     description: e.description,
     amountCents: e.amountCents,
+    date: e.createdAt.toISOString(), // add 'date' property
     currency: e.currency,
     createdAt: e.createdAt.toISOString(),
     group: e.group ? { id: e.group.id, name: e.group.name } : null, // null = direct
@@ -87,6 +88,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClient
+
       name={user.name ?? user.email ?? "Unknown User"}
       groupCount={groupCount}
       groups={groups.map(group => ({
